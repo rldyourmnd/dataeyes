@@ -10,6 +10,10 @@ Thumbs.db
 # Secrets — NEVER commit (matches .env at any depth)
 .env
 
+# Confidential vendor source data (internal supplier coefficients / margin basis)
+*.xlsx
+Dataeyes model price list.xlsx
+
 # Agent tooling cache / runtime state (kept local; not source)
 .serena/
 
