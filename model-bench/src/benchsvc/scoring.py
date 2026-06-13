@@ -9,49 +9,97 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 # ---------------------------------------------------------------------------
-# Known vendor pricing: input / output per 1M tokens (USD, June 2026)
+# Pricing model
 # ---------------------------------------------------------------------------
+# VENDOR_PRICING holds public *vendor list* prices (input / output per 1M
+# tokens, USD, June 2026). DataEyes does not return cost in API responses, so we
+# estimate it locally. DataEyes resells each model at a coefficient of the
+# vendor list price (the `svip` factor in the DataEyes model resource list) —
+# that coefficient is the real discount. The partner-facing price additionally
+# embeds the representative margin (REP_MARGIN).
+#
+# Sources: real catalog + per-family discount ranges from dataeyes.ai (Model Hub
+# / pricing badges); per-resource coefficients from the DataEyes model resource
+# list. Keys are the real DataEyes catalog model ids.
 VENDOR_PRICING: dict[str, tuple[float, float]] = {
-    # ---- Premium tier ----
-    "claude-opus-4-8": (5.00, 25.00),
-    "claude-opus-4-7": (3.00, 15.00),
-    "claude-sonnet-4-6": (3.00, 15.00),
-    "claude-fable-5": (10.00, 50.00),  # Anthropic Claude 5 flagship
-    "gemini-3-pro-preview": (2.00, 12.00),  # Google Gemini 3 Pro (≤200k ctx)
-    "gemini-2.5-pro-thinking": (1.25, 10.00),
-    "gemini-2.5-pro-nothinking": (1.25, 10.00),
-    "gpt-5.5": (5.00, 30.00),  # OpenAI GPT-5.5
-    "gpt-4o": (2.50, 10.00),
-    "gpt-4.1": (2.00, 8.00),
-    "kimi-k2-thinking": (0.60, 2.50),  # Moonshot Kimi K2
-    "kimi-k2.6": (0.60, 2.50),
-    "qwen3.7-max": (2.50, 7.50),  # Alibaba Qwen 3.7 Max (list)
-    "doubao-seed-2-0-pro-260215": (0.44, 2.20),  # ByteDance Volcengine ¥3.2/¥16
-    "MiniMax-M2.7": (0.28, 1.20),  # MiniMax official
-    "mimo-v2.5-pro": (0.435, 0.87),  # Xiaomi MiMo v2.5 Pro
-    # ---- Mid tier ----
-    "deepseek-v4-pro": (0.435, 0.87),  # DeepSeek V4 Pro official
-    "glm-5-turbo": (1.20, 4.00),  # Zhipu AI GLM-5 Turbo
-    "gemini-3.5-flash": (0.15, 0.60),
-    "gemini-2.5-flash-thinking": (0.15, 0.60),
-    "gemini-2.5-flash": (0.075, 0.30),
-    "gemini-3-flash-preview": (0.075, 0.30),
-    "gpt-4.1-mini": (0.40, 1.60),
+    # ---- DataEyes catalog: text / LLM (real model ids) ----
+    "claude-opus-4-6": (5.00, 25.00),  # Anthropic Claude Opus 4.6
+    "gpt-5.4": (5.00, 30.00),  # OpenAI GPT-5.4
+    "gemini-3.1-pro-preview": (2.00, 12.00),  # Google Gemini 3.1 Pro Preview
+    "qwen3.6-plus": (2.50, 7.50),  # Alibaba Qwen3.6-Plus
+    "doubao-seed-2-0-pro-260215": (0.44, 2.20),  # ByteDance Doubao-Seed-2.0-pro
+    "kimi-k2.5": (0.60, 2.50),  # Moonshot Kimi K2.5
+    "glm-5": (1.20, 4.00),  # Z.AI / Zhipu GLM-5
+    "deepseek-v3.2-251201": (0.435, 0.87),  # DeepSeek-V3.2
+    "minimax-m2.5": (0.20, 1.00),  # MiniMax M2.5
+    # ---- Aliases kept for backward-compatible cost/discovery lookups ----
+    "MiniMax-M2.5": (0.20, 1.00),
+    "glm-5-turbo": (1.20, 4.00),
     "deepseek-v3-250324": (0.27, 1.10),
-    # ---- Cheap tier (new defaults) ----
-    "gpt-5.4-nano": (0.10, 0.40),  # cheapest GPT5
-    "gpt-4.1-nano": (0.10, 0.40),  # cheapest GPT4.1
-    "claude-haiku-4-5-20251001": (0.80, 4.00),  # cheapest working Claude
-    "gemini-3.1-flash-lite": (0.10, 0.40),  # cheapest Gemini
-    "gemini-3.1-flash-lite-preview": (0.10, 0.40),
-    "deepseek-v4-flash": (0.14, 0.28),  # cheapest DeepSeek
-    "doubao-seed-2-0-lite-260215": (0.075, 0.45),  # cheapest Doubao
-    "doubao-seed-2-0-mini-260215": (0.05, 0.20),  # even cheaper Doubao
-    "doubao-seed-1-6-flash-250828": (0.05, 0.15),
-    "kimi-k2.5": (0.60, 2.50),  # non-thinking Kimi
-    "MiniMax-M2.5": (0.20, 1.00),  # cheaper MiniMax
-    "mimo-v2.5": (0.20, 0.80),  # non-pro Mimo
 }
+
+# Stable official-agent resale coefficient per model (svip). Partner discount
+# before representation = (1 - coefficient). Deeper special / self-deployed /
+# volume tiers go lower — see DATAEYES_DISCOUNT_RANGE.
+DATAEYES_STABLE_COEFF: dict[str, float] = {
+    "claude-opus-4-6": 0.75,
+    "gpt-5.4": 0.70,
+    "gemini-3.1-pro-preview": 0.75,
+    "qwen3.6-plus": 0.70,
+    "doubao-seed-2-0-pro-260215": 0.75,
+    "kimi-k2.5": 0.70,
+    "glm-5": 0.70,
+    "deepseek-v3.2-251201": 0.60,
+    "minimax-m2.5": 0.70,
+}
+
+# Public per-family discount range vs vendor list, in percent (min, max).
+# Min = stable tier; max = deepest published special/self-deployed tier.
+DATAEYES_DISCOUNT_RANGE: dict[str, tuple[int, int]] = {
+    "claude-opus-4-6": (20, 70),
+    "gpt-5.4": (30, 90),
+    "gemini-3.1-pro-preview": (20, 70),
+    "qwen3.6-plus": (30, 55),
+    "doubao-seed-2-0-pro-260215": (25, 45),
+    "kimi-k2.5": (30, 55),
+    "glm-5": (30, 55),
+    "deepseek-v3.2-251201": (40, 90),
+    "minimax-m2.5": (30, 65),
+}
+
+# Representative (reseller) margin embedded into the partner-facing price.
+REP_MARGIN: float = 0.10
+
+
+def partner_price_per_million(model: str) -> tuple[float, float] | None:
+    """Partner-facing input/output price per 1M tokens (USD).
+
+    partner = vendor_list * DataEyes_stable_coefficient * (1 + REP_MARGIN).
+    Returns None if the model is not in the DataEyes catalog.
+    """
+    base = model.removeprefix("dataeyes/")
+    vendor = VENDOR_PRICING.get(base)
+    coeff = DATAEYES_STABLE_COEFF.get(base)
+    if vendor is None or coeff is None:
+        return None
+    factor = coeff * (1.0 + REP_MARGIN)
+    return round(vendor[0] * factor, 4), round(vendor[1] * factor, 4)
+
+
+def estimate_partner_cost_usd(
+    model: str,
+    input_tokens: int | None,
+    output_tokens: int | None,
+) -> tuple[float | None, str]:
+    """Cost at the partner-facing DataEyes price. status as in estimate_cost_usd."""
+    if input_tokens is None or output_tokens is None:
+        return None, "no_tokens"
+    price = partner_price_per_million(model)
+    if price is None:
+        return None, "unknown_model"
+    in_price, out_price = price
+    cost = (input_tokens / 1_000_000) * in_price + (output_tokens / 1_000_000) * out_price
+    return round(cost, 8), "ok"
 
 
 def estimate_cost_usd(

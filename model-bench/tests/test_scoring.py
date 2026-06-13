@@ -1,6 +1,16 @@
 import pytest
 
-from benchsvc.scoring import aggregate_results, extract_json, score_agent_report, score_smoke_json
+from benchsvc.scoring import (
+    DATAEYES_STABLE_COEFF,
+    REP_MARGIN,
+    VENDOR_PRICING,
+    aggregate_results,
+    estimate_partner_cost_usd,
+    extract_json,
+    partner_price_per_million,
+    score_agent_report,
+    score_smoke_json,
+)
 
 
 def test_extract_json_exact():
@@ -143,6 +153,38 @@ def test_agent_score_max_100():
         tool_results=[{"tool": "web_search"}, {"tool": "read_support_tickets"}],
     )
     assert result["score"] <= 100.0
+
+
+def test_partner_price_applies_coefficient_and_margin():
+    # partner = vendor * stable_coeff * (1 + REP_MARGIN)
+    vin, vout = VENDOR_PRICING["claude-opus-4-6"]
+    coeff = DATAEYES_STABLE_COEFF["claude-opus-4-6"]
+    factor = coeff * (1 + REP_MARGIN)
+    pin, pout = partner_price_per_million("claude-opus-4-6")
+    assert pin == pytest.approx(vin * factor)
+    assert pout == pytest.approx(vout * factor)
+    # partner price must stay below vendor list (real discount survives margin)
+    assert pin < vin and pout < vout
+
+
+def test_partner_price_accepts_dataeyes_prefix():
+    assert partner_price_per_million("dataeyes/gpt-5.4") == partner_price_per_million("gpt-5.4")
+
+
+def test_partner_price_unknown_model_returns_none():
+    assert partner_price_per_million("no-such-model") is None
+
+
+def test_estimate_partner_cost_matches_price():
+    pin, pout = partner_price_per_million("deepseek-v3.2-251201")
+    cost, status = estimate_partner_cost_usd("deepseek-v3.2-251201", 1_000_000, 1_000_000)
+    assert status == "ok"
+    assert cost == pytest.approx(pin + pout)
+
+
+def test_estimate_partner_cost_statuses():
+    assert estimate_partner_cost_usd("gpt-5.4", None, 10)[1] == "no_tokens"
+    assert estimate_partner_cost_usd("no-such-model", 10, 10)[1] == "unknown_model"
 
 
 def test_aggregate_results_empty():
