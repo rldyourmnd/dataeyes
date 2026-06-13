@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: dataeyes-bench-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-benchmark}
+      POSTGRES_USER: ${POSTGRES_USER:-benchmark}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchmark}
+      # Create the litellm database on first boot so LiteLLM has its own schema
+      POSTGRES_MULTIPLE_DATABASES: benchmark,litellm
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-benchmark} -d ${POSTGRES_DB:-benchmark}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: dataeyes-bench-rustfs
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+    ports:
+      - "9000:9000"
+    volumes:
+      - rustfs_data:/data
+    command: ["/data"]
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: dataeyes-bench-litellm
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATAEYES_API_KEY: ${DATAEYES_API_KEY}
+      DATAEYES_LLM_BASE_URL: ${DATAEYES_LLM_BASE_URL:-https://cloud.dataeyes.ai/v1}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-local-litellm-change-me}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+      LANGFUSE_OTEL_HOST: ${LANGFUSE_OTEL_HOST:-https://cloud.langfuse.com/api/public/otel}
+      # LiteLLM uses Prisma — give it a dedicated database so it can't touch our tables
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-benchmark}:${POSTGRES_PASSWORD:-benchmark}@postgres:${POSTGRES_PORT:-5432}/litellm"
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./generated/litellm.config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+
+volumes:
+  postgres_data:
+  rustfs_data:

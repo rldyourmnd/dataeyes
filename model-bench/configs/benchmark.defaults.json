@@ -1,0 +1,12 @@
+{
+  "default_suite": "smoke",
+  "request_timeout_seconds": 90,
+  "per_model_retries": 1,
+  "latency_budget_ms_smoke": 15000,
+  "latency_budget_ms_agent_mini": 90000,
+  "agent_max_steps": 10,
+  "agent_min_steps": 5,
+  "judge_enabled_by_default": false,
+  "store_raw_responses": true,
+  "store_search_results": true
+}

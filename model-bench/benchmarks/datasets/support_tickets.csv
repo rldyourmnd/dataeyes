@@ -1,0 +1,9 @@
+ticket_id,severity,category,summary,expected_signal
+T-001,high,endpoint,"OpenAI-compatible client failed until /v1 suffix was added to base URL.",base_url_suffix
+T-002,medium,models,"Some advertised models were not enabled for the account key.",dynamic_discovery
+T-003,high,tool_calling,"Function calling succeeded on one model but another returned invalid tool arguments.",tool_call_accuracy
+T-004,medium,streaming,"Streaming worked but first-token latency varied significantly by model.",latency_variance
+T-005,low,cost,"Cost field was absent from provider response; token usage was present.",cost_unknown_handling
+T-006,high,observability,"Langfuse trace missing because request bypassed LiteLLM proxy.",trace_gateway_routing
+T-007,medium,rate_limit,"Sequential benchmark avoided rate limits; concurrent run hit 429.",sequential_default
+T-008,medium,json_schema,"A fast model returned markdown around JSON and failed strict schema validation.",json_validation

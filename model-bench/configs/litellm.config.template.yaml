@@ -1,0 +1,17 @@
+# Template only. Prefer `make litellm-config`, which writes generated/litellm.config.yaml.
+# User-editable configuration belongs in .env.
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+model_list:
+  - model_name: dataeyes/default
+    litellm_params:
+      model: openai/os.environ/DATAEYES_DEFAULT_MODEL
+      api_base: os.environ/DATAEYES_LLM_BASE_URL
+      api_key: os.environ/DATAEYES_API_KEY
+
+litellm_settings:
+  callbacks:
+    - langfuse_otel
+  set_verbose: false

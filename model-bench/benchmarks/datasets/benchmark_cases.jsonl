@@ -1,0 +1,3 @@
+{"case_id":"smoke_json_exact","suite":"smoke","prompt":"Return exactly {\"status\":\"ok\",\"provider_test\":\"dataeyes\",\"answer\":42}","expected":{"status":"ok","provider_test":"dataeyes","answer":42}}
+{"case_id":"json_schema_vendor_readiness","suite":"json_schema","prompt":"Return vendor-readiness result JSON matching schemas/benchmark_result.schema.json.","expected_required_fields":["executive_summary","required_facts","risk_categories","benchmark_matrix","recommendation","next_actions"]}
+{"case_id":"agent_mini_vendor_readiness","suite":"agent_mini","prompt":"Evaluate DataEyes model-provider readiness using web search and support tickets.","expected_facts":["model discovery","base url","search api","langfuse","tool calling","benchmark matrix"]}

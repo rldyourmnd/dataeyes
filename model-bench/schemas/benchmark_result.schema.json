@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VendorReadinessBenchmarkResult",
+  "type": "object",
+  "required": [
+    "executive_summary",
+    "required_facts",
+    "risk_categories",
+    "benchmark_matrix",
+    "recommendation",
+    "next_actions"
+  ],
+  "properties": {
+    "executive_summary": {"type": "string", "minLength": 20},
+    "required_facts": {
+      "type": "array",
+      "minItems": 3,
+      "items": {"type": "string"}
+    },
+    "risk_categories": {
+      "type": "array",
+      "minItems": 3,
+      "items": {"type": "string"}
+    },
+    "benchmark_matrix": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["suite", "purpose", "metrics"],
+        "properties": {
+          "suite": {"type": "string"},
+          "purpose": {"type": "string"},
+          "metrics": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+      }
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": ["go", "no-go", "conditional-go"]
+    },
+    "next_actions": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"type": "string"}
+    },
+    "estimated_cost_usd": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "cost_status": {
+      "type": "string",
+      "enum": ["known", "estimated", "unknown", "unavailable"]
+    }
+  },
+  "additionalProperties": true
+}
