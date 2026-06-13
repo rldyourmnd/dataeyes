@@ -13,12 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # GITLEAKS_LICENSE is only required for GitHub organizations.
-          # Public repositories in personal accounts run gitleaks-action for free.
+      - name: Install gitleaks
+        run: |
+          VERSION=8.24.3
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # Scan the checked-out working tree (filesystem mode). This avoids the
+      # gitleaks-action commit-range scan, which fails on the repo's first push
+      # because the root commit has no parent revision to diff against.
+      - name: Scan working tree for secrets
+        run: gitleaks dir . --redact --verbose
