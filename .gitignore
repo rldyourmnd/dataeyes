@@ -10,6 +10,9 @@ Thumbs.db
 # Secrets — NEVER commit (matches .env at any depth)
 .env
 
+# Agent tooling cache / runtime state (kept local; not source)
+.serena/
+
 # Python (defense-in-depth)
 __pycache__/
 *.pyc
